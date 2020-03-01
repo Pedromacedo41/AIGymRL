@@ -3,17 +3,40 @@
 Reinforcement Learning project using AIGym library /envs
 
 
-# Game Rules and Goal
+## Game Rules and Goal
+
+The world is a space grid of fixed size. The game goal is simple: take the blue ship to the red square
+
+At each time step, the blue ship can :
+
+- move left 
+- move right
+- move down
+- move up
+- do nothing
+
+Some obstacles were design to make the game harder: 
+
+ - The blue ship can't touch the green ghosts
+ - When the blue ship passes over a mine, there is a probability of 50% that it explodes
 
 (if images don't render, click on them)
 
 ![Ghost Movements and Game Goal](./images/popo3.gif)
 ![Ship Movements](./images/popo.gif)
 
+## AIGym game design
 
-### Quick setut 
+ The game is a typical sthocastic episodic game. 
 
-#### Dependencies ( $ pip install [...])
+- Reward is 1 if ship achieves the red square. 0 in all other cases
+- Every scenario where the ship is hit or exploded is a final state (no additional lives)
+- **Action space:** Discrete(5) => 0 (move left), 1 (move right), 2 (move down), 3 (move up), 4 (do nothing)
+- **Observation Space:** Discrete(10) x Discrete(*hw*) => first coordinate represents the position of the ghost as a group, second coordinate represent the position of the blue ship in the board of *h* of height and *w* of width.
+
+## Quick setut 
+
+### Dependencies ( $ pip install [...])
  
  - pygame
  - gym
