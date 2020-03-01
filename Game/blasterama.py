@@ -242,11 +242,13 @@ def main():
     pygame.display.update()
 
     swarm.play()
+   
 
-
+    GAMEOVER =0
     while not GAMEOVER:
 
         time = pygame.time.get_ticks()
+        print(time)
 
         for event in pygame.event.get():
                 if event.type == QUIT:
@@ -263,11 +265,6 @@ def main():
         if pressed_keys[K_z]: fired = 1
         else: fired = 0
 
-        if fired == 1 and time > missileticks:
-            missileticks = time + 300
-            a,b,c,d = rectlistbaseship[0]
-            missiles.add(Missile((a+18,b)))
-            missile.play()
 
         baseship.clear(screen,background)
         aliens.clear(screen,background)
@@ -301,6 +298,12 @@ def main():
         rectlistbaseship = baseship.draw(screen)
         rectlistmissiles = missiles.draw(screen)
         rectlistaliens = aliens.draw(screen)
+
+        if fired == 1 and time > missileticks:
+            missileticks = time + 300
+            a,b,c,d = rectlistbaseship[0]
+            missiles.add(Missile((a+18,b)))
+            missile.play()
         
 
         if len(rectlistaliens) == 0:
