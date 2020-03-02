@@ -15,20 +15,6 @@ NUM_ACTIONS = 5
 3 -> down
 4 -> do nothing
 '''
-class StatusDisplay(pygame.sprite.Sprite):
-    """ this class is used to display the score etc at the top of the screen"""
-    def __init__(self):
-        pygame.sprite.Sprite.__init__(self)
-        self.font = pygame.font.SysFont("arial", 24)
-        self.text = ""
-        self.image = self.font.render(self.text, 1, (0, 0, 255))
-        self.rect = self.image.get_rect()
-
-    def update(self,text):
-        self.text = text
-        self.image = self.font.render(self.text, 1, (0, 0, 255))
-        self.rect = self.image.get_rect()
-
 
 class Alien(pygame.sprite.Sprite):
     """  Alien class - inherits from pygame Sprite class - all the aliens on the screen"""
@@ -42,19 +28,18 @@ class Alien(pygame.sprite.Sprite):
         self.image = self.imagearray[0]
         self.rect = self.imagearray[0].get_rect()
         self.blocksize= blocksize
+        self.side = side
+        self.position=position
+        self.topscreen = topscreen
+        self.speed = speed
 
-        if(side==1):
-            self.rect.topleft = [position*blocksize,0]
-            self.direction = [0,speed*blocksize]
-        else:
-            self.rect.topleft = [position*blocksize,topscreen]
-            self.direction = [0,-speed*blocksize]
+        self.reset()
+
         self.movement_ticks = 0
         self.animationcounter = random.randrange(0,4)
         self.animation_ticks = 0
-        self.topscreen = topscreen
 
-    def update(self,timer):
+    def update(self,timer,d):
         if self.movement_ticks < timer:
             self.movment_ticks = timer
             if self.rect.left < 0 or self.rect.left > self.topscreen:
@@ -62,8 +47,10 @@ class Alien(pygame.sprite.Sprite):
             if self.rect.top < 0 or self.rect.top > self.topscreen:
                 self.direction[1] = -self.direction[1]
 
-            self.rect.left = self.rect.left + self.direction[0]
-            self.rect.top = self.rect.top + self.direction[1]
+            if(self.side==1):
+                self.rect.top = d*self.blocksize
+            else:
+                self.rect.top = self.topscreen- d*self.blocksize
 
             self.movement_ticks += 10
 
@@ -74,6 +61,18 @@ class Alien(pygame.sprite.Sprite):
                 if self.animationcounter < 0:
                     self.animationcounter = 4
                 self.animation_ticks += 150
+
+    def get_grid_coord(self):
+        return (int(self.rect.top/self.blocksize)+1)
+
+    def reset(self):
+        if(self.side==1):
+            self.rect.topleft = [self.position*self.blocksize,0]
+            self.direction = [0,self.speed*self.blocksize]
+        else:
+            self.rect.topleft = [self.position*self.blocksize,self.topscreen]
+            self.direction = [0,-self.speed*self.blocksize]
+
 
 
 class BaseShip(pygame.sprite.Sprite):
@@ -88,15 +87,15 @@ class BaseShip(pygame.sprite.Sprite):
         self.rect.topleft = [0,self.topscreen]
         self.blocksize= blocksize
 
-    def update(self,direction):
-        if direction == 0 and self.rect.left > 0:
-            self.rect.left -= self.blocksize
-        if direction == 1 and self.rect.left < self.topwidth:
-            self.rect.left += self.blocksize
-        if direction == 2 and self.rect.top > 0:
-            self.rect.top -= self.blocksize
-        if direction == 3 and self.rect.top < (self.topscreen):
-            self.rect.top += self.blocksize
+    def update(self,x,y):
+        self.rect.left = x*self.blocksize
+        self.rect.top = y*self.blocksize
+
+    def get_grid_coord(self):
+        return (int(self.rect.left/self.blocksize), int(self.rect.top/self.blocksize))
+
+    def reset(self):
+        self.rect.topleft = [0,self.topscreen]
 
 
 class End(pygame.sprite.Sprite):
@@ -145,32 +144,128 @@ class Explosion(pygame.sprite.Sprite):
             self.animation_ticks += 50
 
 
-
-
 # Make game compatible with gym enviroment
-class ScapeGame():
+class ScapeGame(gym.Env):
 
     # if interactive i set to True, step function is ignored and the user plays with the game  
-    def __init__(self, grid_size= (10,10), step = 1, speed= 15, free_play= True, interactive = False, blocksize=45):
+    def __init__(self, grid_size= (10,10), step = 1, speed= 15, free_play= True, blocksize=45):
         super().__init__()
-        self.action_space = spaces.MultiDiscrete([1] * NUM_ACTIONS)
-        self.observation_space = spaces.Box(low=0, high=300, shape=(2,))
+        self.action_space = spaces.Discrete(5)
+        self.grid_size=grid_size
+        self.observation_space = (spaces.Discrete(self.grid_size[0]), spaces.Discrete(self.grid_size[1]), spaces.Discrete(1+self.grid_size[1]))
         self.grid_size= grid_size
         self.speed = speed
         self.block_size= blocksize
         self.gameover =0
         self.grid_size=grid_size
         self.step = step
+        self.free_play= free_play
         self.winsize= [(grid_size[0]+1)*self.block_size, (grid_size[1])*self.block_size]
+        self.gui_starter = False
+        self.mine_cells = self.get_mine_cells()
+        self.decreasing = True
+        
 
-        pygame.init()
+    def set_free_play(self,d):
+        self.free_play = d
 
-        pygame.mixer.pre_init(44000, 16, 2, 4096)
-        self.missile = pygame.mixer.Sound('missile.wav')
-        self.explosion = pygame.mixer.Sound('explosion.wav')
-        self.basehit = pygame.mixer.Sound('basehit.wav')
-        self.swarm = pygame.mixer.Sound('swarm.wav')
+    def ghost_state_to_cells(self, d):
+        ghost_cells = []
+        if(d==0 or d==self.grid_size[1]): return ghost_cells
+        else:
+            # (ghost_y odd + ghost_y pair == self.grid_size[1])
+            f = self.grid_size[1]-d
+    
+            #upper cells: 
+            for i in range(0, (self.grid_size[0]+1),2):
+                ghost_cells.append((i, d))
 
+            #lower cells
+            for i in range(1, (self.grid_size[0]+1),2):
+                ghost_cells.append((i, f))
+
+            return ghost_cells
+    
+    def get_mine_cells(self):
+        mine_cells= []
+        f = self.grid_size[0]
+
+        for i in range(0,f+1,2):   
+            mine_cells.append((i, math.floor(self.grid_size[1]/4)))    
+            mine_cells.append((i, self.grid_size[1]-math.ceil(self.grid_size[1]/4)))
+
+        for i in range(1,f,2):  
+            mine_cells.append((i, math.floor(self.grid_size[1]/2)))           
+
+        return mine_cells
+
+
+    def gameloop(self, direction):  
+        nextpositionx, nextpositiony = self.observation[0], self.observation[1]
+        nextd = self.observation[2]
+
+        if(self.observation[2]==0 or self.observation[2]==(self.grid_size[1]-1)):
+            if(self.decreasing==True): 
+                self.decreasing= False
+            else: 
+                self.decreasing= True
+
+        if(self.decreasing==True): 
+            nextd= self.observation[2]-1
+        else:
+            nextd= self.observation[2]+1
+
+        if(direction==0):
+            nextpositionx-=1
+        if(direction==1):
+           nextpositionx+=1
+        if(direction==2):
+            nextpositiony-=1
+        if(direction==3):
+            nextpositiony+=1
+
+
+        self.observation = nextpositionx, nextpositiony , nextd
+
+        if(nextpositiony==0 and nextpositionx==(self.grid_size[0])):
+            if(self.free_play==False): 
+                self.reset()
+            return self.observation, 1, True, {"success"}
+
+        if(nextpositionx<0 or nextpositionx> (self.grid_size[0])):
+            self.reset()
+            return self.observation, 0, True, {"out of range"}
+
+        if(nextpositiony<0 or nextpositiony> (self.grid_size[1]-1)):
+            self.reset()
+            return self.observation, 0, True, {"out of range"}
+
+        if((nextpositionx,nextpositiony) in self.ghost_state_to_cells(self.alien_example_instance[0].get_grid_coord())):
+            if(self.free_play==False): 
+                self.reset()
+            
+            return self.observation, 0, True, {"fired"}
+            
+        if((nextpositionx,nextpositiony) in self.mine_cells):
+            # if the bomb is fired
+            if(random.random()> 1/2):
+                if(self.free_play==False): 
+                    self.reset()
+                return self.observation, 0, True, {"step_bomb"}
+            else:
+                return self.observation, 0, False, {"step_bomb"}
+            
+
+        return self.observation, 0, False, {}
+
+    def step(self, action):
+        return self.observation_space, 0, True, {}
+
+    def reset(self):
+        self.observation = (0,self.grid_size[1]-1, self.grid_size[1]-2)
+        return self.observation
+
+    def game_gui_init(self):
         self.clock = pygame.time.Clock()
         self.screen = pygame.display.set_mode(self.winsize)
 
@@ -178,19 +273,27 @@ class ScapeGame():
         self.mines = pygame.sprite.RenderUpdates()
 
         ### lets create all the alien objects
-        i = self.grid_size[0]
-        while i >= 0:
-            self.aliens.add(Alien(position=i, speed = self.step,side= i%2,blocksize= self.block_size, topscreen=self.winsize[1]-self.block_size))
-            if(i%2==1): 
-                self.mines.add(Mine([i*self.block_size, int(self.grid_size[1]/2)*self.block_size], self.block_size))
-            else:
-                self.mines.add(Mine([i*self.block_size, math.floor(self.grid_size[1]/4)*self.block_size], self.block_size))
-                self.mines.add(Mine([i*self.block_size, self.winsize[1]-math.ceil(self.grid_size[1]/4)*self.block_size], self.block_size))
+        j = self.grid_size[0]
+        self.alien_example_instance= []
+        self.mines_instances = []
 
-            i -= 1
+        for i in range(0,j+1):
+            # get one ghost instance to calculate coordinates
+            self.alien_example_instance.append(Alien(position=i, speed = self.step,side= i%2,blocksize= self.block_size, topscreen=self.winsize[1]-self.block_size))
+            self.aliens.add(self.alien_example_instance[-1])
+            if(i%2==1): 
+                self.mines_instances.append(Mine([i*self.block_size, int(self.grid_size[1]/2)*self.block_size], self.block_size))
+                self.mines.add(self.mines_instances[-1])
+            else:
+                self.mines_instances.append(Mine([i*self.block_size, math.floor(self.grid_size[1]/4)*self.block_size], self.block_size))
+                self.mines.add(self.mines_instances[-1])
+                self.mines_instances.append(Mine([i*self.block_size, self.winsize[1]-math.ceil(self.grid_size[1]/4)*self.block_size], self.block_size))
+                self.mines.add(self.mines_instances[-1])
+
 
         self.baseship = pygame.sprite.RenderUpdates()
-        self.baseship.add(BaseShip(self.winsize[1]-self.block_size, self.winsize[0]- self.block_size, self.block_size))
+        self.ship_instance=BaseShip(self.winsize[1]-self.block_size, self.winsize[0]- self.block_size, self.block_size)
+        self.baseship.add(self.ship_instance)
 
         self.end = pygame.sprite.RenderUpdates()
         self.end.add(End([self.winsize[0]-self.block_size, 0], self.block_size))
@@ -199,30 +302,24 @@ class ScapeGame():
 
         self.explosions = pygame.sprite.RenderUpdates()
 
-
         self.background = pygame.transform.scale(pygame.image.load('background3.bmp').convert(), self.winsize)
         self.screen.blit(self.background,(0,0))
-  
+
+        
+        pygame.init()
+
+        pygame.mixer.pre_init(44000, 16, 2, 4096)
+        self.missile = pygame.mixer.Sound('missile.wav')
+        self.explosion = pygame.mixer.Sound('explosion.wav')
+        self.basehit = pygame.mixer.Sound('basehit.wav')
+        self.swarm = pygame.mixer.Sound('swarm.wav')
         self.swarm.play()
         
         pygame.display.update()
 
 
-
-    def gameloop(self):        
+    def game_gui_render(self):
         time = pygame.time.get_ticks()
-
-        for event in pygame.event.get():
-                if event.type == QUIT:
-                    exit()
-
-        pressed_keys = pygame.key.get_pressed()
-
-        direction = 4
-        if pressed_keys[K_LEFT]: direction = 0
-        if pressed_keys[K_RIGHT]: direction = 1
-        if pressed_keys[K_UP]: direction = 2
-        if pressed_keys[K_DOWN]: direction = 3
 
         self.end.clear(self.screen,self.background)
         self.mines.clear(self.screen,self.background)
@@ -231,25 +328,27 @@ class ScapeGame():
         self.missiles.clear(self.screen,self.background)
         self.explosions.clear(self.screen,self.background)
 
-        self.baseship.update(direction)
+        self.baseship.update(self.observation[0], self.observation[1])
         self.end.update()
 
-        self.aliens.update(time)
+        self.aliens.update(time, self.observation[2])
         self.mines.update()
         self.explosions.update(time)
-
 
         for i in pygame.sprite.groupcollide(self.baseship, self.aliens, False, False):
             a,b,c,d = i.rect
             self.explosions.add(Explosion((a,b)))
-            self.gameover =1
+            self.basehit.play()
+
+        for i in pygame.sprite.groupcollide(self.baseship, self.mines, False, False):
+            a,b,c,d = i.rect
+            self.explosions.add(Explosion((a,b)))
             self.basehit.play()
 
         rectlistend = self.end.draw(self.screen)
         rectlistmines= self.mines.draw(self.screen)
         rectlistbaseship = self.baseship.draw(self.screen)
         rectlistaliens = self.aliens.draw(self.screen)        
-
 
         rectlistexplosions = self.explosions.draw(self.screen)
         pygame.display.update(rectlistend)
@@ -260,17 +359,13 @@ class ScapeGame():
         
         self.clock.tick(self.speed)
 
-    def step(self, action):
-        return self.observation_space, 0, True, {}
-
-    def reset(self):
-        return self.observation_space
-
     def render(self):
-        print("nothing")
-
-    def restart(self):
-        print("nothing")
+        if(self.gui_starter==False):
+            self.game_gui_init()
+            self.gui_starter=True
+            self.game_gui_render()
+        else:
+            self.game_gui_render()
 
 
 def parse_args():
@@ -280,7 +375,8 @@ def parse_args():
     parser.add_argument('--step', default=1.0, type=int)
     parser.add_argument('--speed', default=18, type=int)
     parser.add_argument('--block_size', default=40, type=int)
-    parser.add_argument('--free_play', default=False, type=bool)
+    parser.add_argument('--free_play', default=True, type=bool)
+    parser.add_argument('--gameplay', default=0, type=int)
 
     args = parser.parse_args()
     return args
@@ -289,7 +385,44 @@ if __name__ == '__main__':
     args = parse_args()
     env = ScapeGame(grid_size=(args.w,args.h), speed = args.speed, free_play= args.free_play, step= args.step, blocksize= args.block_size)
 
-    while(True):
-        env.gameloop()
+    env.set_free_play(True)
+   
+    print(env.action_space)
+    print(env.observation_space)
+
+    done = False
+    env.reset()
+
+    interactive = True
+    while True:
+        
+        direction = 4
+        if(args.gameplay!=0):
+            #replace by some policy
+            pass
+        else:
+            if(interactive==True):
+                # the below code throws a exception when pygame tries to get event and the display is not initialized
+                try:
+                    for event in pygame.event.get():
+                        if event.type == QUIT:
+                            exit()
+
+                    pressed_keys = pygame.key.get_pressed()
+
+                    if pressed_keys[K_LEFT]: direction = 0
+                    if pressed_keys[K_RIGHT]: direction = 1
+                    if pressed_keys[K_UP]: direction = 2
+                    if pressed_keys[K_DOWN]: direction = 3
+        
+                except: 
+                    pass
+
+        env.render()
+        observation, reward, done, info = env.gameloop(direction)
+        print(observation, reward,done,info)
+        
+
+
 
     
