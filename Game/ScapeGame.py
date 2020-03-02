@@ -85,7 +85,7 @@ class BaseShip(pygame.sprite.Sprite):
 		self.topscreen = topscreen
 		self.topwidth = topwidth
 		self.rect.topleft = [0,self.topscreen]
-		self.blocksize= blocksize
+		self.blocksize = blocksize
 
 	def update(self,x,y):
 		self.rect.left = x*self.blocksize
@@ -148,46 +148,47 @@ class Explosion(pygame.sprite.Sprite):
 class ScapeGame(gym.Env):
 
 	# if interactive i set to True, step function is ignored and the user plays with the game
-	def __init__(self, grid_size= (10,10), step = 1, speed= 15, free_play= True, blocksize=45):
+	def __init__(self, grid_size = (10,10), step_size = 1, speed = 15, free_play = True, blocksize = 45):
 		super().__init__()
 		self.action_space = spaces.Discrete(5)
-		self.grid_size=grid_size
+		self.grid_size = grid_size
 		self.observation_space = (spaces.Discrete(self.grid_size[0]), spaces.Discrete(self.grid_size[1]), spaces.Discrete(1+self.grid_size[1]))
-		self.grid_size= grid_size
+		self.grid_size = grid_size
 		self.speed = speed
-		self.block_size= blocksize
-		self.gameover =0
-		self.grid_size=grid_size
-		self.step = step
-		self.free_play= free_play
-		self.winsize= [(grid_size[0]+1)*self.block_size, (grid_size[1])*self.block_size]
+		self.block_size = blocksize
+		self.gameover = 0
+		self.grid_size = grid_size
+		self.step_size = step_size
+		self.free_play = free_play
+		self.winsize = [(grid_size[0]+1)*self.block_size, (grid_size[1])*self.block_size]
 		self.gui_starter = False
 		self.mine_cells = self.get_mine_cells()
 		self.decreasing = True
+		self.game_engine_init()
 
 
-	def set_free_play(self,d):
+	def set_free_play(self, d):
 		self.free_play = d
 
 	def ghost_state_to_cells(self, d):
 		ghost_cells = []
-		if(d==0 or d==self.grid_size[1]): return ghost_cells
+		if (d==0 or d==self.grid_size[1]): return ghost_cells
 		else:
 			# (ghost_y odd + ghost_y pair == self.grid_size[1])
 			f = self.grid_size[1]-d
 
 			#upper cells:
-			for i in range(0, (self.grid_size[0]+1),2):
+			for i in range(0, (self.grid_size[0]+1), 2):
 				ghost_cells.append((i, d))
 
 			#lower cells
-			for i in range(1, (self.grid_size[0]+1),2):
+			for i in range(1, (self.grid_size[0]+1), 2):
 				ghost_cells.append((i, f))
 
 			return ghost_cells
 
 	def get_mine_cells(self):
-		mine_cells= []
+		mine_cells = []
 		f = self.grid_size[0]
 
 		for i in range(0,f+1,2):
@@ -200,32 +201,29 @@ class ScapeGame(gym.Env):
 		return mine_cells
 
 
-	def gameloop(self, direction):
+	def step(self, direction):
 		nextpositionx, nextpositiony = self.observation[0], self.observation[1]
 		nextd = self.observation[2]
 
 		if(self.observation[2]==0 or self.observation[2]==(self.grid_size[1]-1)):
-			if(self.decreasing==True):
-				self.decreasing= False
-			else:
-				self.decreasing= True
+			self.decreasing = not self.decreasing
 
-		if(self.decreasing==True):
-			nextd= self.observation[2]-1
+		if(self.decreasing):
+			nextd -= 1
 		else:
-			nextd= self.observation[2]+1
+			nextd += 1
 
 		if(direction==0):
 			nextpositionx-=1
-		if(direction==1):
-		   nextpositionx+=1
-		if(direction==2):
+		elif(direction==1):
+			nextpositionx+=1
+		elif(direction==2):
 			nextpositiony-=1
-		if(direction==3):
+		elif(direction==3):
 			nextpositiony+=1
 
 
-		self.observation = nextpositionx, nextpositiony , nextd
+		self.observation = nextpositionx, nextpositiony, nextd
 
 		if(nextpositiony==0 and nextpositionx==(self.grid_size[0])):
 			if(self.free_play==False):
@@ -246,9 +244,9 @@ class ScapeGame(gym.Env):
 
 			return self.observation, 0, True, {"fired"}
 
-		if((nextpositionx,nextpositiony) in self.mine_cells):
+		if((nextpositionx, nextpositiony) in self.mine_cells):
 			# if the bomb is fired
-			if(random.random()> 1/2):
+			if(random.random() > 1/2):
 				if(self.free_play==False):
 					self.reset()
 				return self.observation, 0, True, {"step_bomb"}
@@ -258,28 +256,22 @@ class ScapeGame(gym.Env):
 
 		return self.observation, 0, False, {}
 
-	def step(self, action):
-		return self.observation_space, 0, True, {}
+	# def step(self, action):
+	# 	return self.observation_space, 0, True, {}
 
 	def reset(self):
 		self.observation = (0,self.grid_size[1]-1, self.grid_size[1]-2)
 		return self.observation
 
-	def game_gui_init(self):
-		self.clock = pygame.time.Clock()
-		self.screen = pygame.display.set_mode(self.winsize)
-
-		self.aliens = pygame.sprite.RenderUpdates()
-		self.mines = pygame.sprite.RenderUpdates()
-
+	def game_engine_init(self):
 		### lets create all the alien objects
 		j = self.grid_size[0]
-		self.alien_example_instance= []
 		self.mines_instances = []
+		self.alien_example_instance = []
 
 		for i in range(0,j+1):
 			# get one ghost instance to calculate coordinates
-			self.alien_example_instance.append(Alien(position=i, speed = self.step,side= i%2,blocksize= self.block_size, topscreen=self.winsize[1]-self.block_size))
+			self.alien_example_instance.append(Alien(position=i, speed = self.step_size,side= i%2,blocksize= self.block_size, topscreen=self.winsize[1]-self.block_size))
 			self.aliens.add(self.alien_example_instance[-1])
 			if(i%2==1):
 				self.mines_instances.append(Mine([i*self.block_size, int(self.grid_size[1]/2)*self.block_size], self.block_size))
@@ -290,9 +282,16 @@ class ScapeGame(gym.Env):
 				self.mines_instances.append(Mine([i*self.block_size, self.winsize[1]-math.ceil(self.grid_size[1]/4)*self.block_size], self.block_size))
 				self.mines.add(self.mines_instances[-1])
 
+	def game_gui_init(self):
+		self.clock = pygame.time.Clock()
+		self.screen = pygame.display.set_mode(self.winsize)
+
+		self.aliens = pygame.sprite.RenderUpdates()
+		self.mines = pygame.sprite.RenderUpdates()
+
 
 		self.baseship = pygame.sprite.RenderUpdates()
-		self.ship_instance=BaseShip(self.winsize[1]-self.block_size, self.winsize[0]- self.block_size, self.block_size)
+		self.ship_instance = BaseShip(self.winsize[1]-self.block_size, self.winsize[0] - self.block_size, self.block_size)
 		self.baseship.add(self.ship_instance)
 
 		self.end = pygame.sprite.RenderUpdates()
@@ -346,7 +345,7 @@ class ScapeGame(gym.Env):
 			self.basehit.play()
 
 		rectlistend = self.end.draw(self.screen)
-		rectlistmines= self.mines.draw(self.screen)
+		rectlistmines = self.mines.draw(self.screen)
 		rectlistbaseship = self.baseship.draw(self.screen)
 		rectlistaliens = self.aliens.draw(self.screen)
 
@@ -360,7 +359,7 @@ class ScapeGame(gym.Env):
 		self.clock.tick(self.speed)
 
 	def render(self):
-		if(self.gui_starter==False):
+		if (self.gui_starter==False):
 			self.game_gui_init()
 			self.gui_starter=True
 			self.game_gui_render()
@@ -383,7 +382,7 @@ def parse_args():
 
 if __name__ == '__main__':
 	args = parse_args()
-	env = ScapeGame(grid_size=(args.w,args.h), speed = args.speed, free_play= args.free_play, step= args.step, blocksize= args.block_size)
+	env = ScapeGame(grid_size=(args.w,args.h), speed=args.speed, free_play=args.free_play, step_size=args.step, blocksize=args.block_size)
 
 	env.set_free_play(True)
 
@@ -397,12 +396,12 @@ if __name__ == '__main__':
 	while True:
 
 		direction = 4
-		if(args.gameplay!=0):
+		if (args.gameplay != 0):
 			#replace by some policy
 			pass
 		else:
-			if(interactive==True):
-				# the below code throws a exception when pygame tries to get event and the display is not initialized
+			if (interactive == True):
+				# the below code throws an exception when pygame tries to get event and the display is not initialized
 				try:
 					for event in pygame.event.get():
 						if event.type == pygame.KEYDOWN:
@@ -428,5 +427,5 @@ if __name__ == '__main__':
 					pass
 
 		env.render()
-		observation, reward, done, info = env.gameloop(direction)
-		print(observation, reward,done,info)
+		observation, reward, done, info = env.step(direction)
+		print(observation, reward, done, info)
