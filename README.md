@@ -17,8 +17,9 @@ At each time step, the blue ship can :
 
 Some obstacles were design to make the game harder: 
 
- - The blue ship can't touch the green ghosts
+ - The blue ship can't touch the green ghosts (more specific: they can't collide)
  - When the blue ship passes over a mine, there is a probability of 50% that it explodes
+ - If the blue ship tries to go "through the walls" , the ship is also destroyed.
 
 (if images don't render, click on them)
 
@@ -32,7 +33,7 @@ Some obstacles were design to make the game harder:
 - Reward is 1 if ship achieves the red square. 0 in all other cases
 - Every scenario where the ship is hit or exploded is a final state (no additional lives)
 - **Action space:** Discrete(5) => 0 (move left), 1 (move right), 2 (move down), 3 (move up), 4 (do nothing)
-- **Observation Space:** Discrete(10) x Discrete(*hw*) => first coordinate represents the position of the ghost as a group, second coordinate represent the position of the blue ship in the board of *h* of height and *w* of width.
+- **Observation Space:**  Discrete(*hw*) x Discrete(10) => first coordinate represent the position of the blue ship in the board of *h* of height and *w* of width, second coordinate represents the position of the ghost as a group
 
 ## Quick setut 
 
@@ -44,6 +45,10 @@ Some obstacles were design to make the game harder:
  - random
  - argparse
 
+### How to run the game
+
+   **$ python ScapeGame.py [...parameters]**
+
 ### Some parameters:
 
  - **--h** (*default=15, type=int*)                     => height of grid        
@@ -52,3 +57,4 @@ Some obstacles were design to make the game harder:
  - **--speed** (*default=10, type=int*)                 => Renderind speed (affects only human players)
  - **--block_size** (*default=40, type=int* )           => Control the pixel size of a grid squared cell 
  - **--free_play** (*default=False, type=bool*)         => Game don't restart automatically when ship is hit 
+ - **--gameplay** (*default=0, type=int*)               => 0 is user interactive mode. Other modes refers to the gameplay of the trained agents   **(nothing here for the moment!!)**
