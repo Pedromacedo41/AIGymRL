@@ -33,7 +33,7 @@ Some obstacles were design to make the game harder:
 - Reward is 1 if ship achieves the red square. 0 in all other cases
 - Every scenario where the ship is hit or exploded is a final state (no additional lives)
 - **Action space:** Discrete(5) => 0 (move left), 1 (move right), 2 (move down), 3 (move up), 4 (do nothing)
-- **Observation Space:**  Discrete(*hw*) x Discrete(10) => first coordinate represent the position of the blue ship in the board of *h* of height and *w* of width, second coordinate represents the position of the ghost as a group
+- **Observation Space:**  Discrete(*hw*) x Discrete(h) => first coordinate represent the position of the blue ship in the board of *h* of height and *w* of width, second coordinate represents the position of the ghost as a group
 
 ## Quick setut 
 
