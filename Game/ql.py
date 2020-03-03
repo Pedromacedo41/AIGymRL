@@ -12,8 +12,10 @@ is_monitor = True
 
 def q_learning():
 	oS = env.observation_space
-	q_values = np.zeros((oS[0].n, oS[1].n, oS[2].n))
-	learn_count = 10000
+	aS = env.action_space
+	q_values = np.zeros((oS[0].n, oS[1].n, oS[2].n, aS.n))
+	print((oS[0].n, oS[1].n, oS[2].n, aS.n))
+	learn_count = 100000
 	for i in range(learn_count):
 		alpha = 0.1 # learning rate
 		gamma = 0.99 # reward discount
@@ -26,11 +28,13 @@ def q_learning():
 			action = env.action_space.sample() # random
 			next_state, reward, done, info = env.step(action)
 			#self.env.render()
+			print(next_state, end=" ")
 			q_next_max = np.max(q_values[next_state])
 			q_values[state][action] = (1 - alpha) * q_values[state][action] + alpha * (reward + gamma * q_next_max)
 			state = next_state
 			if done:
 				break
+		print("")
 	return q_values
 
 
@@ -45,9 +49,9 @@ def run():
 
 q_values = q_learning()
 successful_trials = 0
-n_trials = 100
+n_trials = 1000
 for i in range(n_trials):
 	successful_trials += run()
-
+print(q_values)
 print(successful_trials / n_trials)
 env.close()

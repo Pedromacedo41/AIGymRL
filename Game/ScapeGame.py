@@ -160,11 +160,11 @@ class ScapeGame(gym.Env):
 		self.grid_size = grid_size
 		self.step_size = step_size
 		self.free_play = free_play
-		self.winsize = [(grid_size[0]+1)*self.block_size, (grid_size[1])*self.block_size]
+		self.winsize = [(grid_size[0])*self.block_size, (grid_size[1])*self.block_size]
 		self.gui_starter = False
 		self.mine_cells = self.get_mine_cells()
 		self.decreasing = True
-		self.game_engine_init()
+		# self.game_engine_init()
 
 
 	def set_free_play(self, d):
@@ -225,12 +225,12 @@ class ScapeGame(gym.Env):
 
 		self.observation = nextpositionx, nextpositiony, nextd
 
-		if(nextpositiony==0 and nextpositionx==(self.grid_size[0])):
+		if(nextpositiony==0 and nextpositionx==(self.grid_size[0]-1)):
 			if(self.free_play==False):
 				self.reset()
 			return self.observation, 1, True, {"success"}
 
-		if(nextpositionx<0 or nextpositionx> (self.grid_size[0])):
+		if(nextpositionx<0 or nextpositionx> (self.grid_size[0]-1)):
 			self.reset()
 			return self.observation, 0, True, {"out of range"}
 
@@ -238,7 +238,7 @@ class ScapeGame(gym.Env):
 			self.reset()
 			return self.observation, 0, True, {"out of range"}
 
-		if((nextpositionx,nextpositiony) in self.ghost_state_to_cells(self.alien_example_instance[0].get_grid_coord())):
+		if((nextpositionx,nextpositiony) in self.ghost_state_to_cells(nextd)):
 			if(self.free_play==False):
 				self.reset()
 
@@ -263,7 +263,14 @@ class ScapeGame(gym.Env):
 		self.observation = (0,self.grid_size[1]-1, self.grid_size[1]-2)
 		return self.observation
 
-	def game_engine_init(self):
+
+	def game_gui_init(self):
+		self.clock = pygame.time.Clock()
+		self.screen = pygame.display.set_mode(self.winsize)
+
+		self.aliens = pygame.sprite.RenderUpdates()
+		self.mines = pygame.sprite.RenderUpdates()
+
 		### lets create all the alien objects
 		j = self.grid_size[0]
 		self.mines_instances = []
@@ -282,14 +289,6 @@ class ScapeGame(gym.Env):
 				self.mines_instances.append(Mine([i*self.block_size, self.winsize[1]-math.ceil(self.grid_size[1]/4)*self.block_size], self.block_size))
 				self.mines.add(self.mines_instances[-1])
 
-	def game_gui_init(self):
-		self.clock = pygame.time.Clock()
-		self.screen = pygame.display.set_mode(self.winsize)
-
-		self.aliens = pygame.sprite.RenderUpdates()
-		self.mines = pygame.sprite.RenderUpdates()
-
-
 		self.baseship = pygame.sprite.RenderUpdates()
 		self.ship_instance = BaseShip(self.winsize[1]-self.block_size, self.winsize[0] - self.block_size, self.block_size)
 		self.baseship.add(self.ship_instance)
@@ -303,6 +302,24 @@ class ScapeGame(gym.Env):
 
 		self.background = pygame.transform.scale(pygame.image.load('background3.bmp').convert(), self.winsize)
 		self.screen.blit(self.background,(0,0))
+
+		### lets create all the alien objects
+		j = self.grid_size[0]
+		self.mines_instances = []
+		self.alien_example_instance = []
+
+		for i in range(0,j+1):
+			# get one ghost instance to calculate coordinates
+			self.alien_example_instance.append(Alien(position=i, speed = self.step_size,side= i%2,blocksize= self.block_size, topscreen=self.winsize[1]-self.block_size))
+			self.aliens.add(self.alien_example_instance[-1])
+			if(i%2==1):
+				self.mines_instances.append(Mine([i*self.block_size, int(self.grid_size[1]/2)*self.block_size], self.block_size))
+				self.mines.add(self.mines_instances[-1])
+			else:
+				self.mines_instances.append(Mine([i*self.block_size, math.floor(self.grid_size[1]/4)*self.block_size], self.block_size))
+				self.mines.add(self.mines_instances[-1])
+				self.mines_instances.append(Mine([i*self.block_size, self.winsize[1]-math.ceil(self.grid_size[1]/4)*self.block_size], self.block_size))
+				self.mines.add(self.mines_instances[-1])
 
 
 		pygame.init()
@@ -366,14 +383,14 @@ class ScapeGame(gym.Env):
 		else:
 			self.game_gui_render()
 
-
+# def __init__(self, grid_size = (10,10), step_size = 1, speed = 15, free_play = True, blocksize = 45):
 def parse_args():
 	parser = argparse.ArgumentParser(description='')
-	parser.add_argument('--h', default=15, type=int)
-	parser.add_argument('--w', default=18, type=int)
+	parser.add_argument('--h', default=10, type=int)
+	parser.add_argument('--w', default=10, type=int)
 	parser.add_argument('--step', default=1.0, type=int)
-	parser.add_argument('--speed', default=18, type=int)
-	parser.add_argument('--block_size', default=40, type=int)
+	parser.add_argument('--speed', default=15, type=int)
+	parser.add_argument('--block_size', default=45, type=int)
 	parser.add_argument('--free_play', default=True, type=bool)
 	parser.add_argument('--gameplay', default=0, type=int)
 
