@@ -5,6 +5,7 @@ from gym.utils import seeding
 import pygame, math, random
 from pygame.locals import *
 import argparse
+import numpy as np
 
 
 NUM_ACTIONS = 5
@@ -148,7 +149,7 @@ class Explosion(pygame.sprite.Sprite):
 class ScapeGame(gym.Env):
 
     # if interactive i set to True, step function is ignored and the user plays with the game  
-    def __init__(self, grid_size= (10,10), step = 1, speed= 15, free_play= True, blocksize=45):
+    def __init__(self, grid_size= (10,10), step = 1, speed= 15, blocksize=45, show_mines = True, nlives= 20):
         super().__init__()
         self.action_space = spaces.Discrete(5)
         self.grid_size=grid_size
@@ -158,33 +159,35 @@ class ScapeGame(gym.Env):
         self.block_size= blocksize
         self.gameover =0
         self.grid_size=grid_size
-        self.step = step
-        self.free_play= free_play
+        self.stepp = step
         self.winsize= [(grid_size[0]+1)*self.block_size, (grid_size[1])*self.block_size]
         self.gui_starter = False
         self.mine_cells = self.get_mine_cells()
         self.decreasing = True
+        self.it =0 
+
+        self.show_mines = show_mines
         
+        # to allow the game to be treinable, we add more restritive constraintes 
+        self.nlives = nlives
+        self.death_count = 0
 
     def set_free_play(self,d):
         self.free_play = d
 
     def ghost_state_to_cells(self, d):
         ghost_cells = []
-        if(d==0 or d==self.grid_size[1]): return ghost_cells
-        else:
-            # (ghost_y odd + ghost_y pair == self.grid_size[1])
-            f = self.grid_size[1]-d
-    
-            #upper cells: 
-            for i in range(0, (self.grid_size[0]+1),2):
-                ghost_cells.append((i, d))
+        # (ghost_y odd + ghost_y pair == self.grid_size[1])
+        f = self.grid_size[1]-d-1
 
-            #lower cells
-            for i in range(1, (self.grid_size[0]+1),2):
-                ghost_cells.append((i, f))
+        #upper cells: 
+        for i in range(0, (self.grid_size[0]+1),2):
+            ghost_cells.append((i, f))
 
-            return ghost_cells
+        #lower cells
+        for i in range(1, (self.grid_size[0]+1),2):
+            ghost_cells.append((i, d))
+        return ghost_cells
     
     def get_mine_cells(self):
         mine_cells= []
@@ -200,9 +203,12 @@ class ScapeGame(gym.Env):
         return mine_cells
 
 
-    def gameloop(self, direction):  
+    def _step(self, direction):  
         nextpositionx, nextpositiony = self.observation[0], self.observation[1]
         nextd = self.observation[2]
+
+        # the target reward to be inversly proportional to the number of iterations to it 
+        self.it+=1
 
         if(self.observation[2]==0 or self.observation[2]==(self.grid_size[1]-1)):
             if(self.decreasing==True): 
@@ -228,41 +234,57 @@ class ScapeGame(gym.Env):
         self.observation = nextpositionx, nextpositiony , nextd
 
         if(nextpositiony==0 and nextpositionx==(self.grid_size[0])):
-            if(self.free_play==False): 
-                self.reset()
-            return self.observation, 1, True, {"success"}
+            return self.observation, (10000), True, "success"
 
         if(nextpositionx<0 or nextpositionx> (self.grid_size[0])):
-            self.reset()
-            return self.observation, 0, True, {"out of range"}
+            self.death_count+=1
+            self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
+
+            if(self.death_count>=  self.nlives):
+                return self.observation, -1, True, "out of range"
+            else:
+                return self.observation, -1, False, "out of range"
 
         if(nextpositiony<0 or nextpositiony> (self.grid_size[1]-1)):
-            self.reset()
-            return self.observation, 0, True, {"out of range"}
+            self.death_count+=1
+            self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
 
-        if((nextpositionx,nextpositiony) in self.ghost_state_to_cells(self.alien_example_instance[0].get_grid_coord())):
-            if(self.free_play==False): 
-                self.reset()
-            
-            return self.observation, 0, True, {"fired"}
-            
-        if((nextpositionx,nextpositiony) in self.mine_cells):
-            # if the bomb is fired
-            if(random.random()> 1/2):
-                if(self.free_play==False): 
-                    self.reset()
-                return self.observation, 0, True, {"step_bomb"}
+            if(self.death_count>=  self.nlives):
+                return self.observation, -1, True, "out of range"
             else:
-                return self.observation, 0, False, {"step_bomb"}
-            
+                return self.observation, -1, False, "out of range"
 
-        return self.observation, 0, False, {}
+        if((nextpositionx,nextpositiony) in self.ghost_state_to_cells(self.observation[2])):
+            self.death_count+=1
+
+            if(self.death_count>=  self.nlives):
+                 return self.observation, -1, True, "fired"
+            else:
+                 return self.observation, -1, False, "fired"
+            
+        if(self.show_mines):
+            if((nextpositionx,nextpositiony) in self.mine_cells):
+                # if the bomb is fired
+                if(random.random()> 1/2):
+                    self.death_count+=1
+                    if(self.death_count>=  self.nlives):
+                        return self.observation, 0, True, "step_bomb_dead"
+                    else:
+                        return self.observation, -1, False, "step_bomb_dead"
+                else:
+                    return self.observation, 0, False, "step_bomb_alive"
+        
+
+        return self.observation, 1, False, {}
 
     def step(self, action):
         return self.observation_space, 0, True, {}
 
     def reset(self):
-        self.observation = (0,self.grid_size[1]-1, self.grid_size[1]-2)
+        self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
+        self.gui_starter = False
+        self.death_count = 0 
+        self.it=0
         return self.observation
 
     def game_gui_init(self):
@@ -270,6 +292,7 @@ class ScapeGame(gym.Env):
         self.screen = pygame.display.set_mode(self.winsize)
 
         self.aliens = pygame.sprite.RenderUpdates()
+        
         self.mines = pygame.sprite.RenderUpdates()
 
         ### lets create all the alien objects
@@ -279,16 +302,17 @@ class ScapeGame(gym.Env):
 
         for i in range(0,j+1):
             # get one ghost instance to calculate coordinates
-            self.alien_example_instance.append(Alien(position=i, speed = self.step,side= i%2,blocksize= self.block_size, topscreen=self.winsize[1]-self.block_size))
+            self.alien_example_instance.append(Alien(position=i, speed = self.stepp,side= i%2,blocksize= self.block_size, topscreen=self.winsize[1]-self.block_size))
             self.aliens.add(self.alien_example_instance[-1])
-            if(i%2==1): 
-                self.mines_instances.append(Mine([i*self.block_size, int(self.grid_size[1]/2)*self.block_size], self.block_size))
-                self.mines.add(self.mines_instances[-1])
-            else:
-                self.mines_instances.append(Mine([i*self.block_size, math.floor(self.grid_size[1]/4)*self.block_size], self.block_size))
-                self.mines.add(self.mines_instances[-1])
-                self.mines_instances.append(Mine([i*self.block_size, self.winsize[1]-math.ceil(self.grid_size[1]/4)*self.block_size], self.block_size))
-                self.mines.add(self.mines_instances[-1])
+            if(self.show_mines):
+                if(i%2==1): 
+                    self.mines_instances.append(Mine([i*self.block_size, int(self.grid_size[1]/2)*self.block_size], self.block_size))
+                    self.mines.add(self.mines_instances[-1])
+                else:
+                    self.mines_instances.append(Mine([i*self.block_size, math.floor(self.grid_size[1]/4)*self.block_size], self.block_size))
+                    self.mines.add(self.mines_instances[-1])
+                    self.mines_instances.append(Mine([i*self.block_size, self.winsize[1]-math.ceil(self.grid_size[1]/4)*self.block_size], self.block_size))
+                    self.mines.add(self.mines_instances[-1])
 
 
         self.baseship = pygame.sprite.RenderUpdates()
@@ -322,7 +346,8 @@ class ScapeGame(gym.Env):
         time = pygame.time.get_ticks()
 
         self.end.clear(self.screen,self.background)
-        self.mines.clear(self.screen,self.background)
+        if(self.show_mines):
+            self.mines.clear(self.screen,self.background)
         self.baseship.clear(self.screen,self.background)
         self.aliens.clear(self.screen,self.background)
         self.missiles.clear(self.screen,self.background)
@@ -332,7 +357,8 @@ class ScapeGame(gym.Env):
         self.end.update()
 
         self.aliens.update(time, self.observation[2])
-        self.mines.update()
+        if(self.show_mines):
+            self.mines.update()
         self.explosions.update(time)
 
         for i in pygame.sprite.groupcollide(self.baseship, self.aliens, False, False):
@@ -346,13 +372,15 @@ class ScapeGame(gym.Env):
             self.basehit.play()
 
         rectlistend = self.end.draw(self.screen)
-        rectlistmines= self.mines.draw(self.screen)
+        if(self.show_mines):
+            rectlistmines= self.mines.draw(self.screen)
         rectlistbaseship = self.baseship.draw(self.screen)
         rectlistaliens = self.aliens.draw(self.screen)        
 
         rectlistexplosions = self.explosions.draw(self.screen)
         pygame.display.update(rectlistend)
-        pygame.display.update(rectlistmines)
+        if(self.show_mines): 
+            pygame.display.update(rectlistmines)
         pygame.display.update(rectlistbaseship)
         pygame.display.update(rectlistaliens)
         pygame.display.update(rectlistexplosions)
@@ -375,17 +403,16 @@ def parse_args():
     parser.add_argument('--step', default=1.0, type=int)
     parser.add_argument('--speed', default=18, type=int)
     parser.add_argument('--block_size', default=40, type=int)
-    parser.add_argument('--free_play', default=True, type=bool)
     parser.add_argument('--gameplay', default=0, type=int)
+    parser.add_argument('--mines', default=True, type=bool)
+    parser.add_argument('--nlives', default=20, type=int)
 
     args = parser.parse_args()
     return args
     
 if __name__ == '__main__': 
     args = parse_args()
-    env = ScapeGame(grid_size=(args.w,args.h), speed = args.speed, free_play= args.free_play, step= args.step, blocksize= args.block_size)
-
-    env.set_free_play(True)
+    env = ScapeGame(grid_size=(args.w,args.h), speed = args.speed, step= args.step, blocksize= args.block_size, show_mines = args.mines, nlives = args.nlives)
    
     print(env.action_space)
     print(env.observation_space)
@@ -419,8 +446,11 @@ if __name__ == '__main__':
                     pass
 
         env.render()
-        observation, reward, done, info = env.gameloop(direction)
+        observation, reward, done, info = env.step(direction)
+
+        if(done) : env.reset()
         print(observation, reward,done,info)
+
         
 
 
