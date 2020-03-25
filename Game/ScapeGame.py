@@ -446,7 +446,7 @@ if __name__ == '__main__':
                     pass
 
         env.render()
-        observation, reward, done, info = env.step(direction)
+        observation, reward, done, info = env._step(direction)
 
         if(done) : env.reset()
         print(observation, reward,done,info)
