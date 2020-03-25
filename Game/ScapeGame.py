@@ -6,6 +6,7 @@ import pygame, math, random
 from pygame.locals import *
 import argparse
 import numpy as np
+import time
 
 
 NUM_ACTIONS = 5
@@ -186,7 +187,7 @@ class Explosion(pygame.sprite.Sprite):
 class ScapeGame(gym.Env):
 
     # if interactive i set to True, step function is ignored and the user plays with the game  
-    def __init__(self, grid_size= (10,10), step = 1, speed= 15, blocksize=45, show_mines = True, nlives= 20):
+    def __init__(self, grid_size= (10,10), step = 1, speed= 15, blocksize=45, show_mines = True, nlives= 20, random_init=False):
         super().__init__()
         self.action_space = spaces.Discrete(5)
         self.grid_size=grid_size
@@ -203,6 +204,7 @@ class ScapeGame(gym.Env):
         self.mine_cells = self.get_mine_cells()
         self.decreasing = True
         self.it =0 
+        self.random_init = random_init
 
         self.show_mines = show_mines
         
@@ -316,7 +318,14 @@ class ScapeGame(gym.Env):
         return np.asarray(self.observation), 1, False, {}
 
     def reset(self):
-        self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
+        if(self.random_init):
+            numpy.random.seed(time.time())
+            a = np.random.randint(low=0, high= self.grid_size[0], size=1)[0]
+            b = np.random.randint(low=0, high= self.grid_size[1], size=1)[0]
+            c = np.random.randint(low=0, high= 1+self.grid_size[1], size=1)[0]
+            self.observation = a,b,c
+        else: 
+            self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
         self.gui_starter = False
         self.death_count = 0 
         self.it=0
@@ -441,13 +450,14 @@ def parse_args():
     parser.add_argument('--gameplay', default=0, type=int)
     parser.add_argument('--mines', default=True, type=bool)
     parser.add_argument('--nlives', default=20, type=int)
+    parser.add_argument('--random_init', default=False, type=bool)
 
     args = parser.parse_args()
     return args
     
 if __name__ == '__main__': 
     args = parse_args()
-    env = ScapeGame(grid_size=(args.w,args.h), speed = args.speed, step= args.step, blocksize= args.block_size, show_mines = args.mines, nlives = args.nlives)
+    env = ScapeGame(grid_size=(args.w,args.h), speed = args.speed, step= args.step, blocksize= args.block_size, show_mines = args.mines, nlives = args.nlives, random_init= args.random_init)
    
     print(env.action_space)
     print(env.observation_space)

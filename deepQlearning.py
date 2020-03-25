@@ -5,10 +5,11 @@ from Game.ScapeGame import *
 from time import sleep
 import copy
 from sys import exit
+import os
 
 
 from stable_baselines.common.vec_env import DummyVecEnv
-from stable_baselines.deepq.policies import MlpPolicy
+from stable_baselines.deepq.policies import MlpPolicy, LnMlpPolicy, CnnPolicy, LnCnnPolicy
 from stable_baselines import DQN
 
 SUCCESS_SEUIL = 50
@@ -102,38 +103,45 @@ while True:
     env.render()
 '''
 
-def callback(*kwargs):
-    print(kwargs)
+
+def callb(local,globa):
+    last_epis = 0  
+    
+    if(len(local['episode_successes'])%100==1):
+        if((local['num_episodes'])%100 ==2):
+            if(last_epis!=(local['num_episodes'])):
+                i_episode= (local['num_episodes']-2)
+                if(not os.path.exists("deepq_scapegame_"+str(i_episode)+".zip")):
+                    local['self'].save("deepq_scapegame_"+ str(i_episode))
+
 
 def train(env, epochs, model=None):
 
     if(model==None):
-        model = DQN(MlpPolicy, env, verbose=1)
+        model = DQN(LnMlpPolicy, env, verbose=1)
 
-    for i_episode in range(0,epochs):
-        #model.learn(total_timesteps=30000, callback=)
-        model.save("deepq_scapegame_"+ str(i_episode))
-        #success, avg_s, avg_fired, avg_out, R, l = test_policy(env, model)
-        #print("Epoch %d, average succes: %.2f, average fired: %.2f , average_out: %.2f, average_return: %.2f, average_len: %.2f" %(i_episode, avg_s, avg_fired, avg_out, R, l))
+    model.learn(total_timesteps=epochs, callback=callb)
         
-
+        
 def main():
-    env = ScapeGame(grid_size=(15,15), show_mines=False, nlives=2, speed=20)
+    env = ScapeGame(grid_size=(15,18), show_mines=False, nlives=5, speed=20, random_init=True)
 
-    model = DQN.load("deepq_scapegame")
+    '''
+    model = DQN.load("deepq_scapegame_400")
     model.set_env(env)
-
-    obs = env.reset()
-    while True:
-        action, _states = model.predict(obs)
-        obs, rewards, dones, info = env.step(action)
-        env.render()
+    num_episodes = 10
     
-   # train(env,50, model)
+    for i_episode in range(num_episodes):
+        done = False
+        obs = env.reset()
+        env.render()
+        while not done:
+            action, _states = model.predict(obs)
+            obs, rewards, dones, info = env.step(action)
+            env.render()
+    '''
 
-    #success, avg_s, avg_fired, avg_out, R, l = test_policy(env, model)
-    #print("Epoch %d, average succes: %.2f, average fired: %.2f , average_out: %.2f, average_return: %.2f, average_len: %.2f" %(i_episode, avg_s, avg_fired, avg_out, R, l))
-
+    train(env,100000)
     
     
 if __name__ == '__main__': 
