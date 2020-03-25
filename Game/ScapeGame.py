@@ -319,7 +319,7 @@ class ScapeGame(gym.Env):
 
     def reset(self):
         if(self.random_init):
-            numpy.random.seed(time.time())
+            np.random.seed(int(time.time()))
             a = np.random.randint(low=0, high= self.grid_size[0], size=1)[0]
             b = np.random.randint(low=0, high= self.grid_size[1], size=1)[0]
             c = np.random.randint(low=0, high= 1+self.grid_size[1], size=1)[0]
