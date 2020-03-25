@@ -17,6 +17,43 @@ NUM_ACTIONS = 5
 4 -> do nothing
 '''
 
+class OneHotEncoding(gym.Space):
+    """
+    {0,...,1,...,0}
+
+    Example usage:
+    self.observation_space = OneHotEncoding(size=4)
+    """
+    def __init__(self, size=None):
+        assert isinstance(size, int) and size > 0
+        self.size = size
+        gym.Space.__init__(self, (), np.int64)
+
+    def sample(self):
+        one_hot_vector = np.zeros(self.size)
+        one_hot_vector[np.random.randint(self.size)] = 1
+        return one_hot_vector
+
+    def pos(self, i):
+        one_hot_vector = np.zeros(self.size)
+        one_hot_vector[np.random.randint(self.size)] = 1
+        return 
+
+    def contains(self, x):
+        if isinstance(x, (list, tuple, np.ndarray)):
+            number_of_zeros = list(x).contains(0)
+            number_of_ones = list(x).contains(1)
+            return (number_of_zeros == (self.size - 1)) and (number_of_ones == 1)
+        else:
+            return False
+
+    def __repr__(self):
+        return "OneHotEncoding(%d)" % self.size
+
+    def __eq__(self, other):
+        return self.size == other.size
+
+    
 class Alien(pygame.sprite.Sprite):
     """  Alien class - inherits from pygame Sprite class - all the aliens on the screen"""
     def __init__(self, position, side=1,blocksize=40, topscreen = 580, speed=1):
@@ -153,7 +190,8 @@ class ScapeGame(gym.Env):
         super().__init__()
         self.action_space = spaces.Discrete(5)
         self.grid_size=grid_size
-        self.observation_space = (spaces.Discrete(self.grid_size[0]), spaces.Discrete(self.grid_size[1]), spaces.Discrete(1+self.grid_size[1]))
+        self.observation_space = spaces.Box(low=np.array([0,0,0]), high= np.array([self.grid_size[0],self.grid_size[1],1+self.grid_size[1]]))
+        #self.observation_space = spaces.Dict({"x": spaces.Discrete(self.grid_size[0]), "y": spaces.Discrete(self.grid_size[1]), "d": spaces.Discrete(1+self.grid_size[1])})
         self.grid_size= grid_size
         self.speed = speed
         self.block_size= blocksize
@@ -203,7 +241,7 @@ class ScapeGame(gym.Env):
         return mine_cells
 
 
-    def _step(self, direction):  
+    def step(self, direction):  
         nextpositionx, nextpositiony = self.observation[0], self.observation[1]
         nextd = self.observation[2]
 
@@ -234,33 +272,33 @@ class ScapeGame(gym.Env):
         self.observation = nextpositionx, nextpositiony , nextd
 
         if(nextpositiony==0 and nextpositionx==(self.grid_size[0])):
-            return self.observation, (10000), True, "success"
+            return self.observation, (100000), True, {"is_success": True}
 
         if(nextpositionx<0 or nextpositionx> (self.grid_size[0])):
             self.death_count+=1
             self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
 
             if(self.death_count>=  self.nlives):
-                return self.observation, -1, True, "out of range"
+                return np.asarray(self.observation), -1, True, {"out of range": True, "is_success": False}
             else:
-                return self.observation, -1, False, "out of range"
+                return np.asarray(self.observation), -1, False, {"out of range": True, "is_success": False}
 
         if(nextpositiony<0 or nextpositiony> (self.grid_size[1]-1)):
             self.death_count+=1
             self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
 
             if(self.death_count>=  self.nlives):
-                return self.observation, -1, True, "out of range"
+                return np.asarray(self.observation), -1, True, {"out of range": True, "is_success": False}
             else:
-                return self.observation, -1, False, "out of range"
+                return np.asarray(self.observation), -1, False, {"out of range": True, "is_success": False}
 
         if((nextpositionx,nextpositiony) in self.ghost_state_to_cells(self.observation[2])):
             self.death_count+=1
 
             if(self.death_count>=  self.nlives):
-                 return self.observation, -1, True, "fired"
+                 return np.asarray(self.observation), -1, True, {"fired":True, "is_success": False}
             else:
-                 return self.observation, -1, False, "fired"
+                 return np.asarray(self.observation), -1, False, {"fired":True, "is_success": False}
             
         if(self.show_mines):
             if((nextpositionx,nextpositiony) in self.mine_cells):
@@ -268,24 +306,21 @@ class ScapeGame(gym.Env):
                 if(random.random()> 1/2):
                     self.death_count+=1
                     if(self.death_count>=  self.nlives):
-                        return self.observation, 0, True, "step_bomb_dead"
+                        return np.asarray(self.observation), 0, True, {"step_bomb_dead": True, "is_success": False}
                     else:
-                        return self.observation, -1, False, "step_bomb_dead"
+                        return np.asarray(self.observation), -1, False, {"step_bomb_dead": True, "is_success": False}
                 else:
-                    return self.observation, 0, False, "step_bomb_alive"
+                    return np.asarray(self.observation), 0, False, {"step_bomb_alive": True, "is_success": False}
         
 
-        return self.observation, 1, False, {}
-
-    def step(self, action):
-        return self.observation_space, 0, True, {}
+        return np.asarray(self.observation), 1, False, {}
 
     def reset(self):
         self.observation = (0,self.grid_size[1]-1, int(self.grid_size[1]/2))
         self.gui_starter = False
         self.death_count = 0 
         self.it=0
-        return self.observation
+        return np.asarray(self.observation)
 
     def game_gui_init(self):
         self.clock = pygame.time.Clock()
@@ -446,7 +481,7 @@ if __name__ == '__main__':
                     pass
 
         env.render()
-        observation, reward, done, info = env._step(direction)
+        observation, reward, done, info = env.step(direction)
 
         if(done) : env.reset()
         print(observation, reward,done,info)
