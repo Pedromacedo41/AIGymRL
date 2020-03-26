@@ -14,7 +14,7 @@ def q_learning():
 	oS = env.observation_space
 	aS = env.action_space
 	q_values = np.zeros((oS[0].n, oS[1].n, oS[2].n, aS.n))
-	print((oS[0].n, oS[1].n, oS[2].n, aS.n))
+	# print((oS[0].n, oS[1].n, oS[2].n, aS.n))
 	learn_count = 100000
 	for i in range(learn_count):
 		alpha = 0.1 # learning rate
@@ -25,10 +25,10 @@ def q_learning():
 		turn_limit = 100
 
 		for t in range(turn_limit):
+			print(state, end=" ")
 			action = env.action_space.sample() # random
 			next_state, reward, done, info = env.step(action)
 			#self.env.render()
-			print(next_state, end=" ")
 			q_next_max = np.max(q_values[next_state])
 			q_values[state][action] = (1 - alpha) * q_values[state][action] + alpha * (reward + gamma * q_next_max)
 			state = next_state
