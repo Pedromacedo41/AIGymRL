@@ -124,7 +124,7 @@ def train(env, epochs, model=None):
         
         
 def main():
-    env = ScapeGame(grid_size=(15,18), show_mines=False, nlives=5, speed=20, random_init=True)
+    env = ScapeGame(grid_size=(8,8), show_mines=True, nlives=5, speed=20, random_init=True)
 
     '''
     model = DQN.load("deepq_scapegame_400")
